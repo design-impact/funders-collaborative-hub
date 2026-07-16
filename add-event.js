@@ -18,6 +18,57 @@ const quill = new Quill("#editor", {
   placeholder: "Enter further details",
 });
 
+// ===========================================================================
+// >>> ADDED: Make the Quill rich-text field ("Further details") required <<<
+// ===========================================================================
+
+// Returns true if the Quill editor has no real text in it.
+// Quill always keeps at least a "<p><br></p>" inside, so we can't check innerHTML.
+// getText() gives us the plain text; if it's only whitespace, it's empty.
+function isQuillEmpty(quillInstance) {
+  return quillInstance.getText().trim().length === 0;
+}
+
+// Show a red validation message directly under the editor.
+function showQuillError(message) {
+  const editor = document.querySelector("#editor");
+  if (!editor) return;
+
+  let errorEl = document.querySelector("#editor-error");
+  if (!errorEl) {
+    errorEl = document.createElement("div");
+    errorEl.id = "editor-error";
+    errorEl.style.color = "#e75f5b"; // same red used elsewhere in this form
+    errorEl.style.fontSize = "0.875rem";
+    errorEl.style.marginTop = "0.5rem";
+    editor.parentNode.insertBefore(errorEl, editor.nextSibling);
+  }
+  errorEl.textContent = message;
+
+  // Optional: red outline on the editor itself.
+  editor.style.border = "1px solid #e75f5b";
+}
+
+// Remove the validation message + red outline.
+function clearQuillError() {
+  const errorEl = document.querySelector("#editor-error");
+  if (errorEl) errorEl.textContent = "";
+
+  const editor = document.querySelector("#editor");
+  if (editor) editor.style.border = "";
+}
+
+// As soon as the user starts typing, clear the error.
+quill.on("text-change", function () {
+  if (!isQuillEmpty(quill)) {
+    clearQuillError();
+  }
+});
+
+// ===========================================================================
+// >>> END ADDED SECTION <<<
+// ===========================================================================
+
 // Script to show/hide Physical location field based on Type of location
 const locationTypeInput = document.querySelector("#Location-type");
 const physicalLocationInput = document.querySelector("#physical-location");
@@ -247,6 +298,21 @@ form.addEventListener("submit", async function (event) {
     return; // Stop submission if any URL field is invalid
   }
 
+  // =========================================================================
+  // >>> ADDED: block submit if the Quill "Further details" field is empty <<<
+  // =========================================================================
+  if (isQuillEmpty(quill)) {
+    showQuillError("Please enter further details before submitting.");
+    // Bring the editor into view so the user sees the message.
+    document
+      .querySelector("#editor")
+      .scrollIntoView({ behavior: "smooth", block: "center" });
+    return; // Stop submission
+  }
+  // =========================================================================
+  // >>> END ADDED SECTION <<<
+  // =========================================================================
+
   // two lines added for processing rich text input
   const detailsField = document.querySelector("#Further-details");
   detailsField.value = quill.root.innerHTML;
@@ -280,6 +346,9 @@ form.addEventListener("submit", async function (event) {
       errorMessage.style.display = "none";
       // Reset the form values
       form.reset();
+      // >>> ADDED: also clear the Quill editor on success <<<
+      quill.setText("");
+      clearQuillError();
     } else {
       sendErrorDetails("Event: if-!response.ok", response);
       // Manually trigger Webflow error message
