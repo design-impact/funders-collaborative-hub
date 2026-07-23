@@ -288,12 +288,21 @@ document.addEventListener("DOMContentLoaded", function () {
 // Select the Webflow form
 const form = document.querySelector("#submit-event");
 
-// Add an event listener to intercept the form submission
-form.addEventListener("submit", async function (event) {
-  // Prevent the default form submission
-  event.preventDefault();
+// Add an event listener to intercept the form submission.
+// >>> CHANGED: added `true` (capture phase) so this runs BEFORE Webflow's own
+// submit handler, letting us fully stop Webflow when our validation fails.
+form.addEventListener(
+  "submit",
+  async function (event) {
+    // Prevent the default form submission
+    event.preventDefault();
+    // >>> ADDED: also stop Webflow's built-in submit handler from firing.
+    // Without this, Webflow submits the form itself even when our empty-check
+    // blocks it — which caused the "message flashes, then it submits anyway".
+    event.stopPropagation();
+    event.stopImmediatePropagation();
 
-  // Check all URL fields validity before proceeding
+    // Check all URL fields validity before proceeding
   if (!checkAllURLFieldsValidity("#submit-event")) {
     return; // Stop submission if any URL field is invalid
   }
@@ -367,4 +376,6 @@ form.addEventListener("submit", async function (event) {
       "Oops! Something went wrong while submitting the form. (Error 2)";
     successMessage.style.display = "none";
   }
-});
+  },
+  true
+);
