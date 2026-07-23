@@ -335,8 +335,13 @@ form.addEventListener(
     data[key] = value;
   });
 
-  const successMessage = document.querySelector(".w-form-done");
-  const errorMessage = document.querySelector(".w-form-fail");
+  // >>> CHANGED: scope the success/error lookups to THIS form's wrapper.
+  // The page has several Webflow forms, so document.querySelector(".w-form-done")
+  // was grabbing a DIFFERENT form's (empty) success block, so our success message
+  // never showed. form.closest(".w-form") targets the event form's own messages.
+  const formWrap = form.closest(".w-form");
+  const successMessage = formWrap.querySelector(".w-form-done");
+  const errorMessage = formWrap.querySelector(".w-form-fail");
   const hookUrl = "xy2rivaujzyfb5969p2yxhb9avghv9pt";
 
   // Submit form data to your webhook
@@ -353,6 +358,9 @@ form.addEventListener(
       // Manually trigger Webflow success message
       successMessage.style.display = "block";
       errorMessage.style.display = "none";
+      // >>> ADDED: hide the form itself, like Webflow normally does on success.
+      // (We stop Webflow's own handler, so we have to do this ourselves.)
+      form.style.display = "none";
       // Reset the form values
       form.reset();
       // >>> ADDED: also clear the Quill editor on success <<<
