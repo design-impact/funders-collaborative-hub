@@ -289,21 +289,34 @@ document.addEventListener("DOMContentLoaded", function () {
 const form = document.querySelector("#submit-event");
 
 // Add an event listener to intercept the form submission.
-// >>> CHANGED: added `true` (capture phase) so this runs BEFORE Webflow's own
-// submit handler, letting us fully stop Webflow when our validation fails.
+// The listener is registered on the capture phase (`true`, at the bottom of this
+// call) so it runs BEFORE Webflow's own submit handler. That ordering is what lets
+// us stop Webflow when our validation fails, and let it through when it passes.
 form.addEventListener(
   "submit",
   async function (event) {
     // Prevent the default form submission
     event.preventDefault();
-    // >>> ADDED: also stop Webflow's built-in submit handler from firing.
-    // Without this, Webflow submits the form itself even when our empty-check
-    // blocks it — which caused the "message flashes, then it submits anyway".
-    event.stopPropagation();
-    event.stopImmediatePropagation();
+
+    // >>> FIX (2026-09-23): stop Webflow's built-in submit handler ONLY when our
+    // own validation fails.
+    //
+    // Previously stopPropagation()/stopImmediatePropagation() were called here,
+    // unconditionally, before any validation ran. That killed Webflow's handler on
+    // EVERY submission, so Webflow never recorded the submission and never sent the
+    // notification email, even though the Make webhook still created the CMS item.
+    // Calling them only on the bail-out paths restores the intended behaviour.
+    //
+    // Both calls must happen synchronously, before the first `await` below, or the
+    // event has already reached Webflow's handler and stopping it does nothing.
+    const blockWebflow = () => {
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+    };
 
     // Check all URL fields validity before proceeding
   if (!checkAllURLFieldsValidity("#submit-event")) {
+    blockWebflow();
     return; // Stop submission if any URL field is invalid
   }
 
@@ -311,6 +324,7 @@ form.addEventListener(
   // >>> ADDED: block submit if the Quill "Further details" field is empty <<<
   // =========================================================================
   if (isQuillEmpty(quill)) {
+    blockWebflow();
     showQuillError("Please enter further details before submitting.");
     // Bring the editor into view so the user sees the message.
     document
@@ -358,8 +372,12 @@ form.addEventListener(
       // Manually trigger Webflow success message
       successMessage.style.display = "block";
       errorMessage.style.display = "none";
-      // >>> ADDED: hide the form itself, like Webflow normally does on success.
-      // (We stop Webflow's own handler, so we have to do this ourselves.)
+      // Hide the form itself, like Webflow normally does on success.
+      // NOTE: when validation passes, Webflow's own handler now also runs and will
+      // do the same thing, so this is belt and braces rather than strictly needed.
+      // It still matters if Webflow's submission is rejected (e.g. an expired
+      // reCAPTCHA or Turnstile token), because the entry HAS been created via the
+      // webhook and the submitter should not be told otherwise.
       form.style.display = "none";
       // Reset the form values
       form.reset();
